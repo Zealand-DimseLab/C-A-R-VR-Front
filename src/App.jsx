@@ -13,7 +13,14 @@ import {
 import { apiIsConfigured, sendToApi } from './services/questionnaireApi.js';
 
 // Forudfyldt tekst i scenarie-observationer: "Bil1: " til "Bil6: "
-const BIL_SKABELON = Array.from({ length: 6 }, (_, i) => `Bil${i + 1}: `).join('\n');
+const BIL_SKABELON = [
+    'Bil1 tæt: ',
+    'Bil2: ',
+    'Bil3: ',
+    'Bil4 rød tæt: ',
+    'Bil5: ',
+    'Bil6: ',
+].join('\n');
 const SCENARIE_NUMRE = [1, 2, 3];
 
 // Udfylder tomme scenarie-noter med skabelonen (rører ikke noter, der allerede har tekst)
