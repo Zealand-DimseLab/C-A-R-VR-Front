@@ -12,6 +12,24 @@ import {
 } from './services/storage.js';
 import { apiIsConfigured, sendToApi } from './services/questionnaireApi.js';
 
+// Forudfyldt tekst i scenarie-observationer: "Bil1: " til "Bil6: "
+const BIL_SKABELON = Array.from({ length: 6 }, (_, i) => `Bil${i + 1}: `).join('\n');
+const SCENARIE_NUMRE = [1, 2, 3];
+
+// Udfylder tomme scenarie-noter med skabelonen (rører ikke noter, der allerede har tekst)
+function withBilTemplate(rec) {
+  let changed = false;
+  const answers = { ...rec.answers };
+  for (const n of SCENARIE_NUMRE) {
+    const key = `Scenarie${n}Noter`;
+    if (!answers[key] || !String(answers[key]).trim()) {
+      answers[key] = BIL_SKABELON;
+      changed = true;
+    }
+  }
+  return { record: changed ? { ...rec, answers } : rec, changed };
+}
+
 function ChoiceGroup({ name, value, options, onChange, columns = 2 }) {
   return <div className={`choices cols-${columns}`} role="radiogroup" aria-label={name}>
     {options.map((option) => <label key={option} className={`choice ${value === option ? 'selected' : ''}`}>
@@ -33,7 +51,7 @@ function Question({ number, title, help, children }) {
 }
 
 function NoteArea({ id, value, onChange, placeholder, rows = 3 }) {
-  return <textarea id={id} rows={rows} maxLength={9000} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder || 'Skriv her...'} />;
+  return <textarea id={id} rows={rows} maxLength={9000} value={value ?? ''} onChange={(event) => onChange(event.target.value)} placeholder={placeholder || 'Skriv her...'} />;
 }
 
 function ScriptBox({ children }) {
@@ -98,13 +116,13 @@ function FirstPart({ answers, setField }) {
         <p>Du følger bare vejen og skiltene, og når du kommer til et sving, er det en god idé at sagtne farten rigtig meget.</p>
       </ScriptBox>
       <p className="caption-text">Notér testpersonens reaktioner og vigtige tidspunkter i hvert af de tre scenarier.</p>
-      {[1, 2, 3].map(n => <div className="scenario" key={n}>
+      {SCENARIE_NUMRE.map(n => <div className="scenario" key={n}>
         <div className="scenario-top"><span>0{n}</span><strong>Scenarie {n}</strong></div>
         <div className="scenario-fields">
           <label className="sub-label" htmlFor={`time-${n}`}>Klokkeslæt / tidspunkt</label>
           <input id={`time-${n}`} className="text-field" maxLength={48} placeholder="Fx 11:42 eller 03:15 inde i testen" value={answers[`Scenarie${n}Tid`]} onChange={e => setField(`Scenarie${n}Tid`, e.target.value)} />
           <label className="sub-label" htmlFor={`note-${n}`}>Observationer</label>
-          <NoteArea id={`note-${n}`} value={answers[`Scenarie${n}Noter`]} onChange={v => setField(`Scenarie${n}Noter`, v)} placeholder="Hvad skete der, og hvordan reagerede testpersonen?" />
+          <NoteArea id={`note-${n}`} rows={7} value={answers[`Scenarie${n}Noter`]} onChange={v => setField(`Scenarie${n}Noter`, v)} placeholder="Hvad skete der, og hvordan reagerede testpersonen?" />
         </div>
       </div>)}
       <Question title="Dokumentation: Blev testen gennemført?">
@@ -177,11 +195,13 @@ export default function App() {
 
   function installRecord(next, message) {
     const normalized = normalizeRecord(next);
-    current.current = normalized;
-    dirty.current = false;
-    setLookup(normalized.id);
-    setRecord(normalized);
-    setSaveStatus(normalized.updatedAt ? 'saved' : 'idle');
+    // Forudfyld tomme scenarie-noter med Bil1–Bil6 (nye og eksisterende besvarelser)
+    const { record: filled, changed } = withBilTemplate(normalized);
+    current.current = filled;
+    dirty.current = changed;
+    setLookup(filled.id);
+    setRecord(filled);
+    setSaveStatus(changed ? 'pending' : (filled.updatedAt ? 'saved' : 'idle'));
     setAlert(message ? { type: 'success', text: message } : null);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -292,10 +312,11 @@ export default function App() {
               {record.part === '1' ? <button className="btn primary" onClick={() => movePart(2)}>Gå til del 2 <ArrowRight size={17} /></button> : <button className="btn primary" onClick={() => movePart(1)}><ArrowLeft size={17} /> Til del 1</button>}
             </div>
           </div>
-                {apiIsConfigured && <div className="api-actions"><Database size={18} /><span>API-integration er konfigureret</span><button disabled={apiBusy} onClick={pushToApi}><CloudUpload size={16} /> Send til API</button></div>}
+          {apiIsConfigured && <div className="api-actions"><Database size={18} /><span>API-integration er konfigureret</span><button disabled={apiBusy} onClick={pushToApi}><CloudUpload size={16} /> Send til API</button></div>}
         </>}
         <footer className="page-footer"><ShieldCheck size={16} /> Lokale data gemmes kun i denne browser. På delte computere bør I bruge en sikret backend til rigtige personoplysninger. Ingen data sendes til API automatisk.</footer>
       </div>
     </main>
   </div>;
 }
+
